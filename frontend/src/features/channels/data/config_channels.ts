@@ -310,6 +310,14 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
     color: 'bg-black-100 text-black-800 border-black-200',
     icon: XAI,
   },
+  xai_oauth: {
+    channelType: 'xai_oauth',
+    baseURL: 'https://api.x.ai/v1',
+    defaultModels: ['grok-4.3', 'grok-4.20-0309-reasoning', 'grok-4.20-0309-non-reasoning', 'grok-3', 'grok-3-mini', 'grok-3-mini-fast'],
+    apiFormat: OPENAI_RESPONSES,
+    color: 'bg-black-100 text-black-800 border-black-200',
+    icon: XAI,
+  },
   longcat: {
     channelType: 'longcat',
     baseURL: 'https://api.longcat.chat/openai/v1',

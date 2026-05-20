@@ -36,6 +36,7 @@ import {
 } from '../data/channels';
 import { claudecodeOAuthExchange, claudecodeOAuthStart } from '../data/claudecode';
 import { codexDecodeAuthJSON, codexOAuthExchange, codexOAuthStart } from '../data/codex';
+import { xaiOAuthExchange, xaiOAuthStart } from '../data/xai';
 import {
   getDefaultBaseURL,
   getDefaultModels,
@@ -196,7 +197,7 @@ function getNextDuplicateName(name: string, existingNames: Set<string>) {
 }
 
 // Providers that are always OAuth (no third-party API key mode)
-const alwaysOAuthProviderKeys = ['antigravity', 'github_copilot'];
+const alwaysOAuthProviderKeys = ['antigravity', 'github_copilot', 'xai_oauth'];
 
 function isOfficialCodexChannel(channel: { credentials?: { apiKey?: string } }): boolean {
   try {
@@ -357,6 +358,15 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     },
   });
 
+  const xaiOAuth = useOAuthFlow({
+    startFn: xaiOAuthStart,
+    exchangeFn: xaiOAuthExchange,
+    proxyConfig,
+    onSuccess: (credentials) => {
+      form.setValue('credentials.apiKey', credentials);
+    },
+  });
+
   // Provider-based selection state
   const [selectedProvider, setSelectedProvider] = useState<string>(() => {
     if (initialRow) {
@@ -415,9 +425,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
       codexOAuth.reset();
       claudecodeOAuth.reset();
       antigravityOAuth.reset();
+      xaiOAuth.reset();
       setCodexAuthJSONText('');
     }
-  }, [open, codexOAuth, claudecodeOAuth, antigravityOAuth]);
+  }, [open, codexOAuth, claudecodeOAuth, antigravityOAuth, xaiOAuth]);
 
   useEffect(() => {
     if (!open) {
@@ -619,6 +630,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const isAntigravityType = (selectedType || derivedChannelType) === 'antigravity';
   const isClaudeCodeType = (selectedType || derivedChannelType) === 'claudecode';
   const isCopilotType = (selectedType || derivedChannelType) === 'github_copilot';
+  const isXaiOauthType = (selectedType || derivedChannelType) === 'xai_oauth';
 
 
 
@@ -630,6 +642,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     if (alwaysOAuthProviderKeys.includes(currentRow.type)) return true;
     if (currentRow.type === 'codex') return isOfficialCodexChannel(currentRow);
     if (currentRow.type === 'claudecode') return isOfficialClaudeCodeChannel(currentRow);
+    if (currentRow.type === 'xai_oauth') return true;
     return false;
   }, [isEdit, currentRow]);
 
@@ -687,6 +700,20 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
         return;
       }
 
+      if (provider === 'xai_oauth') {
+        setSelectedApiFormat(OPENAI_RESPONSES);
+        form.setValue('type', 'xai_oauth');
+        if (!isEdit) {
+          setFetchedModels([]);
+          setUseFetchedModels(false);
+          const baseURL = getDefaultBaseURL('xai_oauth');
+          if (baseURL && !isDuplicate) {
+            form.setValue('baseURL', baseURL);
+          }
+        }
+        return;
+      }
+
       if (provider === 'antigravity') {
         setSelectedApiFormat(GEMINI_CONTENTS);
         form.setValue('type', 'antigravity');
@@ -740,7 +767,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const handleApiFormatChange = useCallback(
     (format: ApiFormat) => {
       if (isOAuthChannel) return;
-      if (selectedProvider === 'codex' || selectedProvider === 'antigravity') return;
+      if (selectedProvider === 'codex' || selectedProvider === 'antigravity' || selectedProvider === 'xai_oauth') return;
 
       setSelectedApiFormat(format);
 
@@ -1222,7 +1249,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     const apiKeys = form.watch('credentials.apiKeys');
     const hasApiKey = apiKeys?.some((key) => key.trim().length > 0);
 
-    if (isCodexType || isAntigravityType) {
+    if (isCodexType || isAntigravityType || isXaiOauthType) {
       return !!baseURL;
     }
 
@@ -1811,6 +1838,15 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                         </FormItem>
                       )}
 
+                      {isXaiOauthType && (
+                        <div className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                          <div className='col-span-2' />
+                          <div className='space-y-4 md:col-span-6'>
+                            {renderOAuthSection(xaiOAuth, t('channels.dialogs.fields.apiFormat.xai_oauth.description'))}
+                          </div>
+                        </div>
+                      )}
+
                       {(isCodexType || isClaudeCodeType) && (
                         <div className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
                           <div className='col-span-2' />
@@ -1900,7 +1936,8 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                 disabled={
                                   ((isCodexType && (authMode === 'official' || authMode === 'auth-json')) ||
                                     (isClaudeCodeType && authMode === 'official')) ||
-                                  selectedProvider === 'antigravity'
+                                  selectedProvider === 'antigravity' ||
+                                  isXaiOauthType
                                 }
                                 {...field}
                               />
@@ -1910,7 +1947,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                         )}
                       />
 
-                      {(!(isCodexType || isClaudeCodeType || isCopilotType) || authMode === 'third-party') &&
+                      {(!(isCodexType || isClaudeCodeType || isCopilotType || isXaiOauthType) || authMode === 'third-party') &&
                         selectedProvider !== 'antigravity' &&
                         selectedType !== 'anthropic_gcp' && (
                           <FormField

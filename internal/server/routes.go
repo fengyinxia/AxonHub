@@ -31,6 +31,7 @@ type Handlers struct {
 	Jina           *api.JinaHandlers
 	Codex          *api.CodexHandlers
 	ClaudeCode     *api.ClaudeCodeHandlers
+	Xai            *api.XaiHandlers
 	Antigravity    *api.AntigravityHandlers
 	Copilot        *api.CopilotHandlers
 	RequestContent *api.RequestContentHandlers
@@ -108,6 +109,9 @@ func SetupRoutes(server *Server, handlers Handlers, client *ent.Client, services
 
 		adminGroup.POST("/claudecode/oauth/start", handlers.ClaudeCode.StartOAuth)
 		adminGroup.POST("/claudecode/oauth/exchange", handlers.ClaudeCode.Exchange)
+
+		adminGroup.POST("/xai/oauth/start", handlers.Xai.StartOAuth)
+		adminGroup.POST("/xai/oauth/exchange", handlers.Xai.Exchange)
 
 		adminGroup.POST("/antigravity/oauth/start", handlers.Antigravity.StartOAuth)
 		adminGroup.POST("/antigravity/oauth/exchange", handlers.Antigravity.Exchange)

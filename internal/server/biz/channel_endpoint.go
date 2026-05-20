@@ -126,6 +126,7 @@ var defaultEndpointsForChannelType = map[channel.Type][]objects.ChannelEndpoint{
 	channel.TypeXiaomi:              openAIChatOnlyDefaultEndpoints,
 	channel.TypeXiaomiAnthropic:     {{APIFormat: llm.APIFormatAnthropicMessage.String()}},
 	channel.TypeXai:                 {{APIFormat: llm.APIFormatOpenAIChatCompletion.String()}},
+	channel.TypeXaiOauth:            {{APIFormat: llm.APIFormatOpenAIResponse.String()}},
 	channel.TypePpio:                openAICompatibleDefaultEndpoints,
 	channel.TypeSiliconflow:         openAICompatibleDefaultEndpoints,
 	channel.TypeVolcengine:          {{APIFormat: llm.APIFormatOpenAIChatCompletion.String()}},

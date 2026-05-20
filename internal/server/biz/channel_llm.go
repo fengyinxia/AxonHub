@@ -322,6 +322,11 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel) (*Channel
 		if !c.Credentials.IsOAuth() && len(enabledKeys) == 0 {
 			return nil, fmt.Errorf("missing credentials: oauth or api key required for channel %s", c.Name)
 		}
+	case channel.TypeXaiOauth:
+		// xai_oauth 仅支持 OAuth 认证，不允许 API Key 模式
+		if !c.Credentials.IsOAuth() {
+			return nil, fmt.Errorf("missing oauth credentials for channel %s", c.Name)
+		}
 	case channel.TypeGithubCopilot:
 		// GitHub Copilot requires OAuth credentials with device flow (strict OAuth only)
 		if !c.Credentials.IsOAuth() {
@@ -465,6 +470,66 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel) (*Channel
 		}
 
 		ch.Outbound = transformer
+
+		return ch, nil
+	case channel.TypeXaiOauth:
+		// xai_oauth 严格 OAuth 模式：从 credentials.APIKey 中读取 OAuth JSON
+		credsJSON := strings.TrimSpace(c.Credentials.APIKey)
+		if c.Credentials.OAuth != nil {
+			o := c.Credentials.OAuth
+
+			encoded, err := (&oauth.OAuthCredentials{
+				AccessToken:  o.AccessToken,
+				RefreshToken: o.RefreshToken,
+				ClientID:     o.ClientID,
+				ExpiresAt:    o.ExpiresAt,
+				TokenType:    o.TokenType,
+				Scopes:       o.Scopes,
+			}).ToJSON()
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode xai_oauth credentials: %w", err)
+			}
+
+			credsJSON = encoded
+		}
+
+		creds, err := oauth.ParseCredentialsJSON(credsJSON)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse xai_oauth credentials: %w", err)
+		}
+
+		baseURL := c.BaseURL
+		if baseURL == "" {
+			baseURL = xai.DefaultBaseURL
+		}
+
+		// 使用 Form-encoded 策略刷新（与 xAI token endpoint 匹配）
+		p := oauth.NewTokenProvider(oauth.TokenProviderParams{
+			Credentials: creds,
+			HTTPClient:  httpClient,
+			OAuthUrls:   xai.FallbackOAuthUrls,
+			ExchangeStrategy: &oauth.FormEncodedStrategy{},
+			OnRefreshed: svc.onTokenRefreshed(c),
+		})
+
+		// 用 oauth.APIKeyProviderFunc 将 OAuth TokenProvider 适配为 auth.APIKeyProvider 接口
+		xaiTransformer, err := xai.NewOutboundTransformerWithConfig(&xai.Config{
+			BaseURL: baseURL,
+			APIKeyProvider: oauth.APIKeyProviderFunc(func(ctx context.Context) string {
+				oauthCreds, getErr := p.Get(ctx)
+				if getErr != nil || oauthCreds == nil {
+					return ""
+				}
+
+				return oauthCreds.AccessToken
+			}),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create xai_oauth outbound transformer: %w", err)
+		}
+
+		ch.Outbound = xaiTransformer
+		setupAutoRefresh(ch, p, oauth.AutoRefreshOptions{})
 
 		return ch, nil
 	case channel.TypeLongcatAnthropic:

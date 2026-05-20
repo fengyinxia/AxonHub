@@ -163,3 +163,4 @@ config.schema.json
 *.db-wal
 *.agent/summary
 .factory
+.ace-tool/
